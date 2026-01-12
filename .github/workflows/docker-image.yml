@@ -4,10 +4,11 @@ on:
   push:
     tags:
       - v*
+  workflow_dispatch:
 
 env:
-  APP_NAME: CLIProxyAPI
-  GHCR_REPO: ghcr.io/${{ github.repository }}
+  # 定义基础镜像名，下面会处理小写
+  IMAGE_NAME: ${{ github.repository }}
 
 jobs:
   docker:
@@ -18,33 +19,45 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # 获取完整历史以便生成版本号
+
+      # 关键步骤：将镜像仓库名转为小写
+      - name: Lowercase repo name
+        run: |
+          echo "GHCR_REPO=ghcr.io/${IMAGE_NAME,,}" >> $GITHUB_ENV
+
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
+        
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
+
       - name: Login to GitHub Container Registry
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Generate Build Metadata
         run: |
-          echo VERSION=`git describe --tags --always --dirty` >> $GITHUB_ENV
-          echo COMMIT=`git rev-parse --short HEAD` >> $GITHUB_ENV
-          echo BUILD_DATE=`date -u +%Y-%m-%dT%H:%M:%SZ` >> $GITHUB_ENV
+          # 这样写更稳健，如果 tag 不存在则用 commit hash
+          echo "VERSION=$(git describe --tags --always --dirty)" >> $GITHUB_ENV
+          echo "COMMIT=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
+          echo "BUILD_DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> $GITHUB_ENV
+
       - name: Build and push
         uses: docker/build-push-action@v6
         with:
           context: .
-          platforms: |
-            linux/amd64
-            linux/arm64
+          platforms: linux/amd64,linux/arm64
           push: true
           build-args: |
             VERSION=${{ env.VERSION }}
             COMMIT=${{ env.COMMIT }}
             BUILD_DATE=${{ env.BUILD_DATE }}
+          # 使用处理过的小写变量 env.GHCR_REPO
           tags: |
             ${{ env.GHCR_REPO }}:latest
             ${{ env.GHCR_REPO }}:${{ env.VERSION }}
