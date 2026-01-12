@@ -141,7 +141,7 @@ func ConvertOpenAIRequestToCodex(modelName string, inputRawJSON []byte, stream b
 				msg := `{}`
 				msg, _ = sjson.Set(msg, "type", "message")
 				if role == "system" {
-					msg, _ = sjson.Set(msg, "role", "user")
+					msg, _ = sjson.Set(msg, "role", "developer")
 				} else {
 					msg, _ = sjson.Set(msg, "role", role)
 				}
